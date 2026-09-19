@@ -22,6 +22,7 @@ import {
   MLFLOW_RUNS 
 } from '../data/telecomData';
 import { profileDataset, calculateChurnProbability, simulateWhatIf } from '../utils/mlEngine';
+import { validateTelecomDataset, TelecomValidationResult } from '../utils/telecomValidator';
 
 export type NavigationTab = 
   | 'executive-dashboard'
@@ -68,7 +69,7 @@ interface PlatformContextType {
   // Data Operations & Quick Actions
   datasetUploadInfo: DatasetUploadState | null;
   clearDataset: () => void;
-  handleDatasetUpload: (newRecords: any[], filename?: string, fileSizeBytes?: number) => void;
+  handleDatasetUpload: (newRecords: any[], filename?: string, fileSizeBytes?: number) => { success: boolean; errorTitle?: string; error?: string };
   resetToDefaultDataset: () => void;
   drillDownToCustomer: (customerId: string) => void;
   triageHighRiskCohort: () => void;
@@ -140,8 +141,14 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const seenIds = new Set<string>();
     const sanitized: TelecomCustomer[] = [];
 
-    for (const cust of list) {
-      if (!cust || !cust.id) continue;
+    for (const rawCust of list) {
+      if (!rawCust || !rawCust.id) continue;
+      // Re-align risk level strictly to user thresholds (>0.70 High, 0.35-0.70 Medium, <0.35 Low)
+      let riskLevel: RiskLevel = 'Low';
+      if (rawCust.churnProbability > 0.70) riskLevel = 'High';
+      else if (rawCust.churnProbability >= 0.35) riskLevel = 'Medium';
+
+      const cust: TelecomCustomer = { ...rawCust, riskLevel };
       let uniqueId = cust.id;
       if (seenIds.has(uniqueId)) {
         let counter = 1;
@@ -313,7 +320,26 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   // Upload handler that scores any uploaded telecom CSV batch and integrates it seamlessly
-  const handleDatasetUpload = (newRecords: any[], filename?: string, fileSizeBytes?: number) => {
+  const handleDatasetUpload = (newRecords: any[], filename?: string, fileSizeBytes?: number): { success: boolean; errorTitle?: string; error?: string } => {
+    if (!newRecords || newRecords.length === 0) {
+      return {
+        success: false,
+        errorTitle: 'Invalid Dataset',
+        error: 'CSV file contains no data rows.',
+      };
+    }
+
+    // Strict Telecom-Only Schema Validation
+    const headers = Object.keys(newRecords[0] || {});
+    const validation = validateTelecomDataset(headers);
+    if (!validation.isValid) {
+      return {
+        success: false,
+        errorTitle: validation.errorTitle || 'Invalid Telecom Dataset Detected.',
+        error: validation.errorMessage || 'Please upload a valid telecom customer churn dataset.',
+      };
+    }
+
     const scoredList: TelecomCustomer[] = newRecords.map((rec, idx) => {
       const contract = rec.Contract || rec.contract || (idx % 2 === 0 ? 'Month-to-month' : 'One year');
       const tenure = Number(rec.tenure || rec.Tenure || rec.tenureMonths || 12);
@@ -409,7 +435,9 @@ export const PlatformProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       } catch (e) {
         console.error('Failed to persist dataset upload info', e);
       }
+      return { success: true };
     }
+    return { success: false, error: 'No valid records scored.' };
   };
 
   const resetToDefaultDataset = () => {

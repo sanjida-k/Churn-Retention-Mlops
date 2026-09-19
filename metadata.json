@@ -1,6 +1,6 @@
 {
   "name": "ChurnGuard",
-  "description": "Telecom customer churn intelligence and revenue retention platform",
+  "description": "Telecom Customer Churn Prediction & Retention Platform",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

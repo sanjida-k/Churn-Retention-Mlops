@@ -19,7 +19,10 @@ import {
   CreditCard,
   Send,
   Zap,
-  TrendingDown
+  TrendingDown,
+  Clock,
+  MessageSquare,
+  FileCheck
 } from 'lucide-react';
 import { 
   BarChart, 
@@ -33,6 +36,7 @@ import {
 } from 'recharts';
 import { usePlatform } from '../../context/PlatformContext';
 import { ContractType, InternetServiceType, PaymentMethodType } from '../../types/churn';
+import { EmptyState } from '../common/EmptyState';
 
 export const Customer360: React.FC = () => {
   const { 
@@ -44,14 +48,52 @@ export const Customer360: React.FC = () => {
     updateWhatIfParams,
     resetWhatIfParams,
     whatIfResult,
+    setActiveTab,
     formatCurrency,
     formatCurrencyText
   } = usePlatform();
 
+  if (!customers || customers.length === 0) {
+    return (
+      <div className="space-y-6 pb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Customer 360 & Decision Support
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Holistic subscriber telemetry, explainable ML churn drivers, and real-time retention simulation.
+            </p>
+          </div>
+        </div>
+        <EmptyState
+          title="No subscriber selected."
+          description="Select a subscriber from Risk Segmentation or upload a telecom dataset."
+          buttonText="Go to Telecom Data Center"
+        />
+      </div>
+    );
+  }
+
   if (!selectedCustomer || !whatIfParams || !whatIfResult) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center text-slate-500">
-        Loading subscriber intelligence profile...
+      <div className="space-y-6 pb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Customer 360 & Decision Support
+            </h1>
+            <p className="text-sm text-slate-500 mt-0.5">
+              Holistic subscriber telemetry, explainable ML churn drivers, and real-time retention simulation.
+            </p>
+          </div>
+        </div>
+        <EmptyState
+          title="No subscriber selected."
+          description="Select a subscriber from Risk Segmentation or choose from the dropdown."
+          buttonText="Go to Risk Segmentation"
+          onAction={() => setActiveTab('customer-intelligence')}
+        />
       </div>
     );
   }
@@ -68,21 +110,54 @@ export const Customer360: React.FC = () => {
   const probDeltaPct = Number((whatIfResult.deltaProbability * 100).toFixed(1));
   const isReduced = probDeltaPct < 0;
 
+  // Timeline & Activity events derived from subscriber telemetry
+  const timelineEvents = [
+    {
+      date: '3 days ago',
+      icon: MessageSquare,
+      title: `${selectedCustomer.supportTicketsLast90d > 0 ? selectedCustomer.supportTicketsLast90d + ' Support tickets' : 'No escalation issues'} logged`,
+      detail: selectedCustomer.supportTicketsLast90d >= 3 
+        ? 'Repeated router latency / connection dropped incidents reported.'
+        : 'Billing and connectivity operational without critical incidents.',
+      type: selectedCustomer.supportTicketsLast90d >= 3 ? 'warning' : 'neutral'
+    },
+    {
+      date: '14 days ago',
+      icon: CreditCard,
+      title: `Monthly billing: ${formatCurrency(selectedCustomer.monthlyCharges)} via ${selectedCustomer.paymentMethod}`,
+      detail: selectedCustomer.paymentMethod === 'Electronic check' 
+        ? 'Manual transaction completed; flagged for auto-pay discount enrollment.'
+        : 'Automated payment settled successfully with zero friction.',
+      type: 'neutral'
+    },
+    {
+      date: '45 days ago',
+      icon: FileCheck,
+      title: `Contract status: ${selectedCustomer.contract}`,
+      detail: selectedCustomer.contract === 'Month-to-month'
+        ? 'Eligible for 12-month lock promotional incentive with bill credit.'
+        : 'Term agreement active and protecting customer longevity.',
+      type: 'neutral'
+    },
+    {
+      date: `${selectedCustomer.tenureMonths} mos ago`,
+      icon: Calendar,
+      title: `Initial subscription onboarded (${selectedCustomer.internetService})`,
+      detail: `Cumulative lifetime value generated: ${formatCurrency(selectedCustomer.clv)} over ${selectedCustomer.tenureMonths} active months.`,
+      type: 'success'
+    }
+  ];
+
   return (
     <div className="space-y-6 pb-12">
       {/* Top Header & Customer Selector */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 uppercase tracking-wider">
-            <span>Customer 360 & Predictive Simulation</span>
-            <span>•</span>
-            <span className="text-slate-500 font-medium">Account ID: {selectedCustomer.id}</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             {selectedCustomer.name}
           </h1>
           <p className="text-sm text-slate-500 mt-0.5">
-            Holistic subscriber telemetry, explainable ML churn drivers, and real-time retention simulation.
+            Customer 360 & Decision Support • Account ID: <span className="font-mono font-semibold text-slate-700">{selectedCustomer.id}</span>
           </p>
         </div>
 
@@ -92,7 +167,7 @@ export const Customer360: React.FC = () => {
           <select
             value={selectedCustomerId}
             onChange={(e) => setSelectedCustomerId(e.target.value)}
-            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-rose-500 focus:outline-none shadow-xs max-w-xs"
+            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-800 focus:border-rose-500 focus:outline-none shadow-xs max-w-xs cursor-pointer"
           >
             {customers.map((c) => (
               <option key={c.id} value={c.id}>
@@ -123,10 +198,10 @@ export const Customer360: React.FC = () => {
                 </div>
               </div>
               <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${
-                selectedCustomer.riskLevel === 'High' ? 'bg-rose-100 text-rose-700' :
-                selectedCustomer.riskLevel === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                selectedCustomer.churnProbability > 0.70 ? 'bg-rose-100 text-rose-700' :
+                selectedCustomer.churnProbability >= 0.35 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
               }`}>
-                {selectedCustomer.riskLevel} Risk
+                {selectedCustomer.churnProbability > 0.70 ? 'High' : selectedCustomer.churnProbability >= 0.35 ? 'Medium' : 'Low'} Risk
               </span>
             </div>
 
@@ -197,7 +272,7 @@ export const Customer360: React.FC = () => {
           <div>
             <div className="flex items-center justify-between">
               <h3 className="text-sm font-bold text-slate-900">Churn Probability & Risk</h3>
-              <span className="text-xs font-medium text-slate-500 font-mono">Model v2.4</span>
+              <span className="text-xs font-medium text-slate-500 font-mono">Telecom ML</span>
             </div>
             <p className="text-xs text-slate-500 mt-0.5">Predicted likelihood of defection in next 60 days</p>
 
@@ -205,24 +280,24 @@ export const Customer360: React.FC = () => {
             <div className="mt-6 flex flex-col items-center justify-center text-center p-6 rounded-2xl bg-slate-50/70 border border-slate-100">
               <div className="relative flex items-center justify-center">
                 <span className={`text-5xl font-black font-mono tracking-tight ${
-                  selectedCustomer.riskLevel === 'High' ? 'text-rose-600' :
-                  selectedCustomer.riskLevel === 'Medium' ? 'text-amber-600' : 'text-emerald-600'
+                  selectedCustomer.churnProbability > 0.70 ? 'text-rose-600' :
+                  selectedCustomer.churnProbability >= 0.35 ? 'text-amber-600' : 'text-emerald-600'
                 }`}>
                   {(selectedCustomer.churnProbability * 100).toFixed(1)}%
                 </span>
               </div>
               <div className="mt-2 flex items-center gap-2">
                 <span className={`rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wider ${
-                  selectedCustomer.riskLevel === 'High' ? 'bg-rose-100 text-rose-700' :
-                  selectedCustomer.riskLevel === 'Medium' ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
+                  selectedCustomer.churnProbability > 0.70 ? 'bg-rose-100 text-rose-700' :
+                  selectedCustomer.churnProbability >= 0.35 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'
                 }`}>
-                  {selectedCustomer.riskLevel} Churn Risk
+                  {selectedCustomer.churnProbability > 0.70 ? 'High' : selectedCustomer.churnProbability >= 0.35 ? 'Medium' : 'Low'} Churn Risk
                 </span>
               </div>
               <p className="mt-3 text-xs text-slate-500 max-w-xs leading-relaxed">
-                {selectedCustomer.riskLevel === 'High' 
+                {selectedCustomer.churnProbability > 0.70 
                   ? 'Urgent intervention required. High attrition probability driven by contract flexibility and support friction.'
-                  : selectedCustomer.riskLevel === 'Medium'
+                  : selectedCustomer.churnProbability >= 0.35
                   ? 'Moderate attrition likelihood. Sensitive to competitor price promotions.'
                   : 'Highly stable subscriber profile. Strong contract and tenure protection.'}
               </p>
@@ -246,7 +321,7 @@ export const Customer360: React.FC = () => {
           </div>
 
           <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between">
-            <span>Telemetry source: BSS / OSS Billing stream</span>
+            <span>Telemetry source: Telecom BSS Pipeline</span>
             <span className="font-semibold text-emerald-600 flex items-center gap-1">
               <Check className="h-3 w-3" /> Real-time
             </span>
@@ -306,7 +381,7 @@ export const Customer360: React.FC = () => {
           <div className="mt-5">
             <button 
               onClick={() => alert(`Retention Play '${selectedCustomer.recommendedAction.title}' dispatched to ${selectedCustomer.recommendedAction.recommendedChannel} for ${selectedCustomer.name}.`)}
-              className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors"
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-rose-600 py-2.5 text-xs font-bold text-white shadow-sm hover:bg-rose-700 transition-colors cursor-pointer"
             >
               <Send className="h-3.5 w-3.5" />
               <span>Dispatch Retention Offer</span>
@@ -315,25 +390,25 @@ export const Customer360: React.FC = () => {
         </div>
       </div>
 
-      {/* SHAP Explanation Breakdown Section */}
+      {/* SHAP Explanation Breakdown Section (Customer-Level SHAP Feature Contributions) */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
           <div>
             <h3 className="text-base font-bold text-slate-900">
-              SHAP Attribution Explanation (Why this customer may leave)
+              Top Contributing Features for this Customer (SHAP Explanations)
             </h3>
             <p className="text-xs text-slate-500 mt-0.5">
-              Exact feature contribution force pushing toward (+ Red) or protecting against (- Green) churn from baseline
+              Exact feature contribution forces pushing toward (+ Red) or protecting against (- Green) churn for {selectedCustomer.name}
             </p>
           </div>
           <div className="flex items-center gap-4 text-xs">
             <div className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-rose-500" />
-              <span className="text-slate-600 font-medium">Increases Risk</span>
+              <span className="text-slate-600 font-medium">Increases Risk (+ SHAP)</span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
-              <span className="text-slate-600 font-medium">Reduces Risk</span>
+              <span className="text-slate-600 font-medium">Reduces Risk (- SHAP)</span>
             </div>
           </div>
         </div>
@@ -366,6 +441,41 @@ export const Customer360: React.FC = () => {
         </div>
       </div>
 
+      {/* Customer Timeline & Telemetry Activity Feed */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm">
+        <div className="flex items-center gap-2 mb-4">
+          <Clock className="h-5 w-5 text-slate-700" />
+          <div>
+            <h3 className="text-base font-bold text-slate-900">
+              Customer Timeline & Account Activity
+            </h3>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Chronological log of support events, billing interactions, and service lifecycle milestones
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-4 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-slate-200">
+          {timelineEvents.map((evt, idx) => {
+            const Icon = evt.icon;
+            return (
+              <div key={idx} className="relative flex items-start gap-4 pl-8">
+                <div className="absolute left-1.5 top-0.5 -translate-x-1/2 flex h-6 w-6 items-center justify-center rounded-full bg-white border-2 border-slate-300">
+                  <Icon className="h-3 w-3 text-slate-600" />
+                </div>
+                <div className="flex-1 rounded-xl bg-slate-50/80 p-3 border border-slate-100">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-800">{evt.title}</span>
+                    <span className="text-[10px] font-medium text-slate-400">{evt.date}</span>
+                  </div>
+                  <p className="text-xs text-slate-600 mt-1">{evt.detail}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* WHAT-IF SIMULATION PANEL (Interactive) */}
       <div className="rounded-2xl border-2 border-indigo-200 bg-gradient-to-b from-indigo-50/40 via-white to-white p-6 shadow-sm">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-indigo-100 pb-4">
@@ -388,7 +498,7 @@ export const Customer360: React.FC = () => {
 
           <button
             onClick={resetWhatIfParams}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer"
           >
             <RotateCcw className="h-3.5 w-3.5 text-slate-400" />
             <span>Reset to Current State</span>
@@ -408,7 +518,7 @@ export const Customer360: React.FC = () => {
                   <button
                     key={c}
                     onClick={() => updateWhatIfParams({ contract: c })}
-                    className={`rounded-lg py-2 px-1 text-xs font-bold transition-all text-center ${
+                    className={`rounded-lg py-2 px-1 text-xs font-bold transition-all text-center cursor-pointer ${
                       whatIfParams.contract === c
                         ? 'bg-indigo-600 text-white shadow-xs'
                         : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -450,50 +560,31 @@ export const Customer360: React.FC = () => {
                 type="range"
                 min="1"
                 max="72"
-                step="1"
                 value={whatIfParams.tenureMonths}
                 onChange={(e) => updateWhatIfParams({ tenureMonths: Number(e.target.value) })}
                 className="w-full accent-indigo-600 cursor-pointer"
               />
               <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-1">
                 <span>1 mo (New)</span>
-                <span>24 mo (Matured)</span>
+                <span>36 mo (Mature)</span>
                 <span>72 mo (Loyal)</span>
               </div>
             </div>
           </div>
 
-          {/* Controls Column 2: Value-Add Services & Network */}
-          <div className="space-y-4">
+          {/* Controls Column 2: Payment Method & Service Add-ons */}
+          <div className="space-y-5">
             <div>
-              <label className="text-xs font-bold text-slate-800 mb-1.5 block">
-                Internet Network Technology
-              </label>
-              <select
-                value={whatIfParams.internetService}
-                onChange={(e) => updateWhatIfParams({ internetService: e.target.value as InternetServiceType })}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none"
-              >
-                <option value="Fiber optic">Fiber optic (Ultra Fast)</option>
-                <option value="5G Home">5G Home Broadband</option>
-                <option value="DSL">DSL Broadband</option>
-                <option value="No">No Internet (Voice Only)</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="text-xs font-bold text-slate-800 mb-1.5 block">
-                Payment Channel
-              </label>
+              <label className="text-xs font-bold text-slate-800 block mb-1.5">Payment Method</label>
               <select
                 value={whatIfParams.paymentMethod}
                 onChange={(e) => updateWhatIfParams({ paymentMethod: e.target.value as PaymentMethodType })}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-800 focus:outline-none"
+                className="w-full rounded-xl border border-slate-200 bg-white p-2.5 text-xs font-medium text-slate-800 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
               >
-                <option value="Electronic check">Electronic Check (Manual friction)</option>
-                <option value="Credit card (automatic)">Credit card (Automatic)</option>
-                <option value="Bank transfer (automatic)">Bank transfer (Automatic)</option>
-                <option value="Mailed check">Mailed check</option>
+                <option value="Electronic check">Electronic check (Manual, High Churn Risk)</option>
+                <option value="Mailed check">Mailed check (Paper)</option>
+                <option value="Bank transfer (automatic)">Bank transfer (automatic ACH)</option>
+                <option value="Credit card (automatic)">Credit card (automatic)</option>
               </select>
             </div>
 
@@ -590,7 +681,7 @@ export const Customer360: React.FC = () => {
 
             <button
               onClick={() => alert(`Simulated contract change (${whatIfParams.contract} at ${formatCurrency(whatIfParams.monthlyCharges)}/mo) staged for subscriber ${selectedCustomer.name}.`)}
-              className="mt-4 w-full rounded-xl bg-slate-900 py-2.5 text-center text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-xs"
+              className="mt-4 w-full rounded-xl bg-slate-900 py-2.5 text-center text-xs font-bold text-white hover:bg-slate-800 transition-colors shadow-xs cursor-pointer"
             >
               Stage Simulation to BSS Order
             </button>

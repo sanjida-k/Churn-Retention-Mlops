@@ -64,15 +64,10 @@ export const MLOpsCenter: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
+      {/* Header - Subtitle banner removed */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-indigo-600 uppercase tracking-wider">
-            <span>Engineering & Model Governance</span>
-            <span>•</span>
-            <span className="text-slate-500 font-medium">Secondary Technical Hub</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             MLOps & Observability Center
           </h1>
           <p className="text-sm text-slate-500 mt-1">

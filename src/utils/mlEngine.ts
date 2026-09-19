@@ -199,7 +199,7 @@ export function calculateChurnProbability(params: {
 
   // Risk Classification
   let riskLevel: RiskLevel = 'Low';
-  if (clampedProb >= 0.65) riskLevel = 'High';
+  if (clampedProb > 0.70) riskLevel = 'High';
   else if (clampedProb >= 0.35) riskLevel = 'Medium';
 
   // Sort contributions by absolute magnitude

@@ -1,20 +1,17 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Search, 
-  Filter, 
-  UserCheck, 
   AlertTriangle, 
   ShieldAlert, 
   ShieldCheck, 
-  ArrowRight, 
   ChevronRight,
-  SlidersHorizontal,
   Download,
   Users
 } from 'lucide-react';
 import { usePlatform } from '../../context/PlatformContext';
-import { RiskLevel, ContractType, InternetServiceType } from '../../types/churn';
+import { RiskLevel, ContractType } from '../../types/churn';
 import { exportToCSV } from '../../utils/mlEngine';
+import { EmptyState } from '../common/EmptyState';
 
 export const CustomerIntelligence: React.FC = () => {
   const { 
@@ -27,12 +24,10 @@ export const CustomerIntelligence: React.FC = () => {
     lowRiskCount,
     riskFilter,
     setRiskFilter,
-    formatCurrency,
-    formatCurrencyText
+    formatCurrency
   } = usePlatform();
 
   const [contractFilter, setContractFilter] = useState<'All' | ContractType>('All');
-  const [internetFilter, setInternetFilter] = useState<'All' | InternetServiceType>('All');
   const [selectedSegment, setSelectedSegment] = useState<string>('All');
 
   // Customer Segments Aggregation
@@ -44,7 +39,7 @@ export const CustomerIntelligence: React.FC = () => {
         map[seg] = { count: 0, highRisk: 0, avgCharges: 0, totalMRR: 0 };
       }
       map[seg].count++;
-      if (c.riskLevel === 'High') map[seg].highRisk++;
+      if (c.churnProbability > 0.70) map[seg].highRisk++;
       map[seg].totalMRR += c.monthlyCharges;
     });
 
@@ -52,13 +47,13 @@ export const CustomerIntelligence: React.FC = () => {
       name,
       count: data.count,
       highRisk: data.highRisk,
-      churnRate: Number(((data.highRisk / data.count) * 100).toFixed(1)),
-      avgCharges: Number((data.totalMRR / data.count).toFixed(2)),
+      churnRate: Number(((data.highRisk / (data.count || 1)) * 100).toFixed(1)),
+      avgCharges: Number((data.totalMRR / (data.count || 1)).toFixed(2)),
       totalMRR: Math.round(data.totalMRR),
     }));
   }, [customers]);
 
-  // Filtered customer list
+  // Filtered customer list - strict risk filtering per tab
   const filteredCustomers = useMemo(() => {
     return customers.filter(c => {
       // Search
@@ -70,30 +65,51 @@ export const CustomerIntelligence: React.FC = () => {
                         c.phone.includes(q);
         if (!matches) return false;
       }
-      // Risk tab
-      if (riskFilter !== 'All' && c.riskLevel !== riskFilter) return false;
+      // Strict Risk tab filter
+      if (riskFilter === 'High' && !(c.churnProbability > 0.70)) return false;
+      if (riskFilter === 'Medium' && !(c.churnProbability >= 0.35 && c.churnProbability <= 0.70)) return false;
+      if (riskFilter === 'Low' && !(c.churnProbability < 0.35)) return false;
+
       // Contract
       if (contractFilter !== 'All' && c.contract !== contractFilter) return false;
-      // Internet
-      if (internetFilter !== 'All' && c.internetService !== internetFilter) return false;
+
       // Segment
       if (selectedSegment !== 'All' && c.segment !== selectedSegment) return false;
 
       return true;
     });
-  }, [customers, searchQuery, riskFilter, contractFilter, internetFilter, selectedSegment]);
+  }, [customers, searchQuery, riskFilter, contractFilter, selectedSegment]);
+
+  // Empty state handling
+  if (customers.length === 0) {
+    return (
+      <div className="space-y-6 pb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Subscriber Risk & Cohort Intelligence
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Segment telecom subscriber behavior, monitor high-risk cohorts, and execute targeted retention interventions.
+            </p>
+          </div>
+        </div>
+
+        <EmptyState
+          title="No risk segments available."
+          description="Upload and score a telecom dataset first."
+          buttonText="Go to Telecom Data Center"
+        />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
+      {/* Header - Subtitle banner removed */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 uppercase tracking-wider">
-            <span>Customer Intelligence</span>
-            <span>•</span>
-            <span className="text-slate-500 font-medium">Segmentation & Risk Queues</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Subscriber Risk & Cohort Intelligence
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -104,7 +120,7 @@ export const CustomerIntelligence: React.FC = () => {
         <div className="flex items-center gap-2">
           <button
             onClick={() => exportToCSV(filteredCustomers, 'filtered_subscribers.csv')}
-            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 transition-colors cursor-pointer"
           >
             <Download className="h-3.5 w-3.5 text-slate-500" />
             <span>Export View ({filteredCustomers.length})</span>
@@ -145,13 +161,13 @@ export const CustomerIntelligence: React.FC = () => {
         ))}
       </div>
 
-      {/* Risk Dashboard Filter Tabs */}
+      {/* Risk Dashboard Filter Tabs - Strict Thresholds: >70% High, 35-70% Medium, <35% Low */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-200 pb-4">
         {/* Risk Level Selector */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => setRiskFilter('All')}
-            className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            className={`rounded-xl px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer ${
               riskFilter === 'All'
                 ? 'bg-slate-900 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -161,35 +177,35 @@ export const CustomerIntelligence: React.FC = () => {
           </button>
           <button
             onClick={() => setRiskFilter('High')}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer ${
               riskFilter === 'High'
                 ? 'bg-rose-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-rose-700 hover:bg-rose-50'
             }`}
           >
             <ShieldAlert className="h-3.5 w-3.5" />
-            <span>High Risk (&gt;65%)</span>
+            <span>High Risk (&gt;70%)</span>
             <span className="rounded-full bg-rose-100 text-rose-800 px-1.5 py-0.2 text-[10px] ml-1">
               {highRiskCount}
             </span>
           </button>
           <button
             onClick={() => setRiskFilter('Medium')}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer ${
               riskFilter === 'Medium'
                 ? 'bg-amber-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-amber-700 hover:bg-amber-50'
             }`}
           >
             <AlertTriangle className="h-3.5 w-3.5" />
-            <span>Medium Risk (35-65%)</span>
+            <span>Medium Risk (35-70%)</span>
             <span className="rounded-full bg-amber-100 text-amber-800 px-1.5 py-0.2 text-[10px] ml-1">
               {mediumRiskCount}
             </span>
           </button>
           <button
             onClick={() => setRiskFilter('Low')}
-            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all ${
+            className={`flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold transition-all cursor-pointer ${
               riskFilter === 'Low'
                 ? 'bg-emerald-600 text-white shadow-sm'
                 : 'bg-white border border-slate-200 text-emerald-700 hover:bg-emerald-50'
@@ -203,14 +219,25 @@ export const CustomerIntelligence: React.FC = () => {
           </button>
         </div>
 
-        {/* Dropdown Filters for Contract & Internet Service */}
-        <div className="flex items-center gap-2">
+        {/* Search & Contract Filter (Network Filter Removed) */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="relative">
+            <Search className="h-3.5 w-3.5 absolute left-3 top-2.5 text-slate-400" />
+            <input
+              type="text"
+              placeholder="Search subscribers..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="pl-8 pr-3 py-1.5 rounded-xl border border-slate-200 text-xs text-slate-800 bg-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-rose-500 w-44 sm:w-52"
+            />
+          </div>
+
           <div className="flex items-center gap-1.5">
             <span className="text-xs text-slate-500 font-medium">Contract:</span>
             <select
               value={contractFilter}
               onChange={(e) => setContractFilter(e.target.value as any)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
+              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500 cursor-pointer"
             >
               <option value="All">All Contracts</option>
               <option value="Month-to-month">Month-to-month</option>
@@ -219,29 +246,14 @@ export const CustomerIntelligence: React.FC = () => {
             </select>
           </div>
 
-          <div className="flex items-center gap-1.5">
-            <span className="text-xs text-slate-500 font-medium">Network:</span>
-            <select
-              value={internetFilter}
-              onChange={(e) => setInternetFilter(e.target.value as any)}
-              className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-800 focus:outline-none focus:ring-1 focus:ring-rose-500"
-            >
-              <option value="All">All Networks</option>
-              <option value="Fiber optic">Fiber optic</option>
-              <option value="DSL">DSL</option>
-              <option value="5G Home">5G Home</option>
-              <option value="No">Voice Only</option>
-            </select>
-          </div>
-
-          {(contractFilter !== 'All' || internetFilter !== 'All' || selectedSegment !== 'All') && (
+          {(contractFilter !== 'All' || selectedSegment !== 'All' || searchQuery.trim()) && (
             <button
               onClick={() => {
                 setContractFilter('All');
-                setInternetFilter('All');
                 setSelectedSegment('All');
+                setSearchQuery('');
               }}
-              className="text-xs font-semibold text-rose-600 hover:text-rose-700 ml-1"
+              className="text-xs font-semibold text-rose-600 hover:text-rose-700 ml-1 cursor-pointer"
             >
               Clear
             </button>
@@ -249,7 +261,7 @@ export const CustomerIntelligence: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Customer Risk Table */}
+      {/* Main Customer Risk Table - SHAP & Retention Action removed (Delegated strictly to Customer 360) */}
       <div className="rounded-2xl border border-slate-200/80 bg-white shadow-sm overflow-hidden">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <div>
@@ -261,7 +273,7 @@ export const CustomerIntelligence: React.FC = () => {
             </p>
           </div>
           <span className="text-xs font-medium text-slate-500">
-            Showing all active scoring attributes
+            Strict risk tier segmentation
           </span>
         </div>
 
@@ -270,18 +282,17 @@ export const CustomerIntelligence: React.FC = () => {
             <thead className="bg-slate-50/80 text-[11px] font-bold uppercase tracking-wider text-slate-500 border-b border-slate-200">
               <tr>
                 <th className="py-3 px-4">Subscriber</th>
-                <th className="py-3 px-4">Plan & Network</th>
+                <th className="py-3 px-4">Contract & Plan</th>
                 <th className="py-3 px-4">Tenure & Charges</th>
                 <th className="py-3 px-4">Churn Probability</th>
-                <th className="py-3 px-4">Top Churn Driver (SHAP)</th>
-                <th className="py-3 px-4">Recommended Retention Play</th>
+                <th className="py-3 px-4">Cohort Segment</th>
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredCustomers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={6} className="py-8 text-center text-slate-400">
                     No subscribers found matching the specified filters.
                   </td>
                 </tr>
@@ -294,8 +305,8 @@ export const CustomerIntelligence: React.FC = () => {
                     </td>
 
                     <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-800">{cust.internetService}</div>
-                      <div className="text-[11px] text-slate-500">{cust.contract}</div>
+                      <div className="font-semibold text-slate-800">{cust.contract}</div>
+                      <div className="text-[11px] text-slate-500">{cust.internetService}</div>
                     </td>
 
                     <td className="py-3.5 px-4">
@@ -308,51 +319,39 @@ export const CustomerIntelligence: React.FC = () => {
                         <div className="w-16 h-2 rounded-full bg-slate-100 overflow-hidden">
                           <div 
                             className={`h-full ${
-                              cust.riskLevel === 'High' ? 'bg-rose-500' :
-                              cust.riskLevel === 'Medium' ? 'bg-amber-500' : 'bg-emerald-500'
+                              cust.churnProbability > 0.70 ? 'bg-rose-500' :
+                              cust.churnProbability >= 0.35 ? 'bg-amber-500' : 'bg-emerald-500'
                             }`}
                             style={{ width: `${cust.churnProbability * 100}%` }}
                           />
                         </div>
                         <span className={`font-mono font-bold ${
-                          cust.riskLevel === 'High' ? 'text-rose-600' :
-                          cust.riskLevel === 'Medium' ? 'text-amber-600' : 'text-emerald-600'
+                          cust.churnProbability > 0.70 ? 'text-rose-600' :
+                          cust.churnProbability >= 0.35 ? 'text-amber-600' : 'text-emerald-600'
                         }`}>
                           {(cust.churnProbability * 100).toFixed(0)}%
                         </span>
                       </div>
                       <span className={`inline-block rounded px-1.5 py-0.2 text-[9px] font-bold uppercase mt-1 ${
-                        cust.riskLevel === 'High' ? 'bg-rose-50 text-rose-700' :
-                        cust.riskLevel === 'Medium' ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
+                        cust.churnProbability > 0.70 ? 'bg-rose-50 text-rose-700' :
+                        cust.churnProbability >= 0.35 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'
                       }`}>
-                        {cust.riskLevel} Risk
+                        {cust.churnProbability > 0.70 ? 'High' : cust.churnProbability >= 0.35 ? 'Medium' : 'Low'} Risk
                       </span>
                     </td>
 
-                    <td className="py-3.5 px-4 max-w-[200px]">
-                      <div className="font-semibold text-slate-800 truncate">
-                        {cust.shapContributions[0]?.feature || 'Tenure'}
-                      </div>
-                      <div className="text-[10px] text-slate-400 truncate">
-                        {formatCurrencyText(cust.shapContributions[0]?.description || 'Primary risk factor')}
-                      </div>
-                    </td>
-
-                    <td className="py-3.5 px-4 max-w-[220px]">
-                      <div className="font-semibold text-slate-800 truncate">
-                        {formatCurrencyText(cust.recommendedAction?.title || 'Account Review')}
-                      </div>
-                      <div className="text-[10px] text-emerald-600 font-medium">
-                        +{cust.recommendedAction?.expectedChurnReductionPct || 25}% Retention Probability
-                      </div>
+                    <td className="py-3.5 px-4">
+                      <span className="inline-block rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-medium text-slate-700">
+                        {cust.segment || 'Standard Consumer'}
+                      </span>
                     </td>
 
                     <td className="py-3.5 px-4 text-right">
                       <button
                         onClick={() => drillDownToCustomer(cust.id)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 shadow-xs hover:border-rose-300 hover:bg-rose-50 transition-colors"
+                        className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-600 shadow-xs hover:border-rose-300 hover:bg-rose-50 transition-colors cursor-pointer"
                       >
-                        <span>Drill Down</span>
+                        <span>Customer 360</span>
                         <ChevronRight className="h-3.5 w-3.5" />
                       </button>
                     </td>

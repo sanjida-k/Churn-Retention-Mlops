@@ -24,6 +24,7 @@ import {
   Legend 
 } from 'recharts';
 import { usePlatform } from '../../context/PlatformContext';
+import { EmptyState } from '../common/EmptyState';
 
 export const BusinessImpact: React.FC = () => {
   const { 
@@ -35,6 +36,30 @@ export const BusinessImpact: React.FC = () => {
     formatCurrency,
     currencyConfig
   } = usePlatform();
+
+  // Empty state handling
+  if (totalSubscribers === 0) {
+    return (
+      <div className="space-y-6 pb-12">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+              Revenue Impact & ROI
+            </h1>
+            <p className="text-sm text-slate-500 mt-1">
+              Quantify revenue protected by proactive ML interventions, run financial budget scenarios, and measure cohort retention lift.
+            </p>
+          </div>
+        </div>
+
+        <EmptyState
+          title="No financial data available."
+          description="Upload a telecom dataset to project retention ROI."
+          buttonText="Go to Telecom Data Center"
+        />
+      </div>
+    );
+  }
 
   // Interactive ROI Calculator sliders
   const [retentionBudget, setRetentionBudget] = useState<number>(25000);
@@ -74,16 +99,11 @@ export const BusinessImpact: React.FC = () => {
 
   return (
     <div className="space-y-6 pb-12">
-      {/* Header */}
+      {/* Header - Subtitle banner removed */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 uppercase tracking-wider">
-            <span>Executive Financial Modeling</span>
-            <span>•</span>
-            <span className="text-slate-500 font-medium">Revenue Preservation Analytics</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-0.5">
-            Business Impact & Retention ROI
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
+            Revenue Impact & ROI
           </h1>
           <p className="text-sm text-slate-500 mt-1">
             Quantify revenue protected by proactive ML interventions, run financial budget scenarios, and measure cohort retention lift.

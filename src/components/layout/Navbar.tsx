@@ -56,7 +56,7 @@ export const Navbar: React.FC = () => {
                 PROD v2.4
               </span>
             </div>
-            <p className="text-xs text-slate-500 font-medium hidden sm:block">Telecom Revenue Retention Engine</p>
+            <p className="text-xs text-slate-500 font-medium hidden sm:block">Telecom Customer Churn Prediction & Retention Platform</p>
           </div>
         </div>
 

@@ -4,6 +4,7 @@ import {
   UploadCloud, 
   CheckCircle2, 
   AlertCircle, 
+  AlertTriangle,
   FileText, 
   RefreshCw, 
   Download, 
@@ -20,6 +21,7 @@ import {
 import { usePlatform } from '../../context/PlatformContext';
 import { SchemaField } from '../../types/churn';
 import { exportToCSV } from '../../utils/mlEngine';
+import { validateTelecomDataset } from '../../utils/telecomValidator';
 
 export const DataCenter: React.FC = () => {
   const { 
@@ -35,11 +37,13 @@ export const DataCenter: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<{ title: string; message: string } | null>(null);
   const [filterType, setFilterType] = useState<string>('All');
 
   // Handle CSV file upload
   const processCSVFile = (file: File) => {
     setUploadStatus('Parsing dataset and detecting schema...');
+    setValidationError(null);
     const reader = new FileReader();
 
     reader.onload = (e) => {
@@ -52,6 +56,20 @@ export const DataCenter: React.FC = () => {
         }
 
         const headers = lines[0].split(',').map(h => h.trim().replace(/^"|"$/g, ''));
+
+        // Strict Telecom-Only Schema Validation
+        const validation = validateTelecomDataset(headers);
+        if (!validation.isValid) {
+          setValidationError({
+            title: validation.errorTitle || 'Invalid Telecom Dataset Detected.',
+            message:
+              validation.errorMessage ||
+              'Please upload a valid telecom customer churn dataset containing telecom subscriber attributes such as tenure, contract type, monthly charges, internet service, payment method, and churn status.',
+          });
+          setUploadStatus(null);
+          return;
+        }
+
         const parsedRows = [];
 
         for (let i = 1; i < lines.length; i++) {
@@ -63,7 +81,18 @@ export const DataCenter: React.FC = () => {
           parsedRows.push(rowObj);
         }
 
-        handleDatasetUpload(parsedRows, file.name, file.size);
+        const uploadResult = handleDatasetUpload(parsedRows, file.name, file.size);
+        if (!uploadResult.success) {
+          setValidationError({
+            title: uploadResult.errorTitle || 'Invalid Telecom Dataset Detected.',
+            message:
+              uploadResult.error ||
+              'Please upload a valid telecom customer churn dataset containing telecom subscriber attributes.',
+          });
+          setUploadStatus(null);
+          return;
+        }
+
         setUploadStatus(`Successfully ingested ${parsedRows.length.toLocaleString()} subscriber records from "${file.name}". Schema inferred and pipeline synchronized.`);
       } catch (err) {
         setUploadStatus('Failed to parse CSV. Please ensure valid comma-separated format.');
@@ -106,12 +135,7 @@ export const DataCenter: React.FC = () => {
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-semibold text-rose-600 uppercase tracking-wider">
-            <span>Unified Pipeline</span>
-            <span>•</span>
-            <span className="text-slate-500 font-medium">Dataset Profiling & Schema Governance</span>
-          </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 mt-0.5">
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">
             Telecom Data Center
           </h1>
           <p className="text-sm text-slate-500 mt-1">
@@ -148,6 +172,25 @@ export const DataCenter: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Validation Error Banner */}
+      {validationError && (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50/95 p-5 shadow-sm text-rose-950 flex items-start gap-4">
+          <div className="rounded-xl bg-rose-600 p-2.5 text-white flex-shrink-0 mt-0.5">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <div className="space-y-1 flex-1">
+            <h4 className="text-sm font-bold text-rose-900">{validationError.title}</h4>
+            <p className="text-xs text-rose-800 leading-relaxed">{validationError.message}</p>
+          </div>
+          <button 
+            onClick={() => setValidationError(null)} 
+            className="text-xs font-semibold text-rose-600 hover:text-rose-800 rounded-lg px-2.5 py-1 hover:bg-rose-100/60 transition-colors"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Ingestion Area: Persistent Loaded Summary Card OR Empty Dropzone */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
